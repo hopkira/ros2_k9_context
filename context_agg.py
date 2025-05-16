@@ -31,6 +31,7 @@ class ContextAggregatorNode(Node):
         self.context_lines = {}
         self.context_activity_log = {}
 
+        self.context_pub = self.create_publisher(String, '/robot/context_said', 10)
         self.voice_pub = self.create_publisher(String, '/voice/speak', 10)
         self.cli = self.create_client(GenerateUtterance, 'generate_utterance')
         while not self.cli.wait_for_service(timeout_sec=1.0):
@@ -112,8 +113,8 @@ class ContextAggregatorNode(Node):
     def trigger_llm(self):
         '''Aggregate the prompt with all the context sentences and call GenerateUtterance'''
 
-        lines = [self.context_lines.get(t) for t in self.ordered_topics if self.context_lines.get(t)]
-        if not lines:
+        self.lines = [self.context_lines.get(t) for t in self.ordered_topics if self.context_lines.get(t)]
+        if not self.lines:
             self.get_logger().info("No context lines available yet.")
             return
 
@@ -132,6 +133,10 @@ class ContextAggregatorNode(Node):
         '''Receive the Utterance and then publish to voice'''
         try:
             result = future.result()
+            # Publish context that triggered the utterance
+            self.context_pub.publish(String(data=self.lines))
+            self.get_logger().info(f"K9 contect: {self.lines}")
+            # Publish what he actually is going to say
             self.voice_pub.publish(String(data=result.output))
             self.get_logger().info(f"K9 says: {result.output}")
         except Exception as e:
